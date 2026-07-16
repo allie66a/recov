@@ -164,7 +164,7 @@ export default function App() {
       <section className="quote-bar card">
         <label className="field-inline">
           <span className="label">股票代码</span>
-          <input type="text" value={stockCode} placeholder="如 301003 或 联特"
+          <input type="text" value={stockCode} placeholder="如 301205 或 联特"
             onChange={e => setStockCode(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') fetchQuote() }} />
         </label>

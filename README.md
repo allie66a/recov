@@ -87,7 +87,7 @@ vercel dev                 # 同时跑前端 + python serverless
 
 ```bash
 export TUSHARE_TOKEN=你的token
-python3 local_fetch.py 301003        # 代码
+python3 local_fetch.py 301205        # 代码
 python3 local_fetch.py 联特           # 中文名
 ```
 把输出的价格手动填进网页。

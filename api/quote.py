@@ -1,7 +1,7 @@
 """
 Vercel Serverless Function: 股票行情 + 均线压力位 + 粘合度
 
-接口: GET /api/quote?code=301003
+接口: GET /api/quote?code=301205
 返回: 当前价 / MA5/8/13/20/60 / 第一压力位 / 粘合度 / 建议清仓比例
 
 实现: 直接用 requests 调 tushare HTTP API (POST api.tushare.pro),
@@ -58,7 +58,7 @@ def _ts_to_records(data):
 def _normalize_code(code):
     """把用户输入归一化为 tushare 的 6位数字.后缀 格式。
 
-    支持输入: '301003' / '301003.SZ' / 'sh600519' / '600519.SH'
+    支持输入: '301205' / '301205.SZ' / 'sh600519' / '600519.SH'
     """
     code = (code or "").strip().upper()
     if not code:
