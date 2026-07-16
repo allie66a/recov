@@ -195,7 +195,7 @@ def _stabilization_signals(rows, closes, ma5_today):
     # MA5[i] = mean(closes[i-4..i]), 取最后5个 MA5 值比较
     ma5_series = []
     for i in range(n - 5, n):  # 最后5个交易日的 MA5 (i 从 n-5 到 n-1)
-        ma5_series.append(round(sum(closes[i - 4:i + 1]) / 5, 3))
+        ma5_series.append(round(sum(closes[i - 4:i + 1]) / 5, 2))
     c3_passed = all(ma5_series[i] > ma5_series[i - 1] for i in range(1, len(ma5_series)))
     c3_detail = f"近5日MA5序列 {ma5_series}, " + ("逐日抬高" if c3_passed else "未逐日抬高(有回落)")
     checks.append({"key": "MA5抬高", "label": "近5日MA5逐日抬高", "passed": c3_passed, "detail": c3_detail})
@@ -228,10 +228,10 @@ def _analyze(rows, name):
     def ma(w):
         if len(closes) < w:
             return None
-        return round(sum(closes[-w:]) / w, 3)
+        return round(sum(closes[-w:]) / w, 2)
 
     ma = {w: ma(w) for w in (5, 8, 13, 20, 60)}
-    current = round(closes[-1], 3)
+    current = round(closes[-1], 2)
     last_date = str(rows[-1]["trade_date"])
     ts_code = rows[-1].get("ts_code", "")
 
