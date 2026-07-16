@@ -114,26 +114,108 @@ def _query(code, token):
     except Exception:
         adj_map = {}
 
-    # 合并并按日期升序
+    # 合并并按日期升序 (close/low/high 都做前复权, 同口径)
     rows = []
     for r in daily_recs:
         td = r.get("trade_date")
         raw_close = float(r["close"])
+        raw_low = float(r.get("low") or r["close"])    # low 兜底用 close
+        raw_high = float(r.get("high") or r["close"])  # high 兜底用 close
         adj = adj_map.get(td)
         if adj and adj_map:
             # 前复权: 基准 = 最新交易日的因子
             adj_latest = max(adj_map.values())  # 最新因子 = 最大日期对应
-            # 实际应取最大日期的因子, 这里 max 在单调情况下等价
             close_qfq = raw_close * adj / adj_latest
+            low_qfq = raw_low * adj / adj_latest
+            high_qfq = raw_high * adj / adj_latest
         else:
             close_qfq = raw_close
+            low_qfq = raw_low
+            high_qfq = raw_high
         rows.append({
             "ts_code": r.get("ts_code", code),
             "trade_date": td,
             "close": close_qfq,
+            "low": low_qfq,
+            "high": high_qfq,
         })
     rows.sort(key=lambda x: x["trade_date"])
     return rows, name
+
+
+def _stabilization_signals(rows, closes, ma5_today):
+    """企稳信号判断 (5 项全过 = 已企稳, 可考虑加仓)。
+
+    返回:
+      stabilized: bool, 5项是否全过
+      checks: list of {key, label, passed, detail}
+    口径:
+      1. 止跌企稳: 近5日最低点出现在前3天内 (最近2天没再创新低)
+      2. 不创新低: 近3天最低价都 ≥ 近3天之前那天(倒数第4天)的最低价
+      3. MA5抬高: 近5日 MA5 逐日严格上升
+      4. 站上5日线: 今日收盘 ≥ 今日 MA5
+      5. 未冲高回落: 上影线比例 (最高-收盘)/最高 ≤ 30%
+    """
+    n = len(closes)
+    checks = []
+
+    # 数据不足时直接返回未通过
+    if n < 9:  # 至少需要: 近5日 + 算5日MA5序列需要再往前5日 ≈ 9日
+        labels = ["近5日止跌企稳", "近3天不创新低", "近5日MA5逐日抬高", "今日站上5日线"]
+        for lb in labels:
+            checks.append({"key": lb, "label": lb, "passed": False, "detail": "数据不足"})
+        return {"stabilized": False, "checks": checks}
+
+    lows = [r["low"] for r in rows]
+
+    # --- 条件1: 止跌企稳 (近5日最低点在前3天, 即索引 n-5..n-3 范围内) ---
+    last5_close = closes[-5:]
+    # 最低点的"相对位置": 0=最近2天内(未企稳), 1=前3天内(企稳)
+    min_idx_in_5 = last5_close.index(min(last5_close))  # 0..4, 0=最近一天
+    # min_idx_in_5 >= 2 表示最低点在倒数第3天或更早(前3天)
+    c1_passed = min_idx_in_5 >= 2
+    day_desc = {0: "最近1天", 1: "倒数第2天", 2: "倒数第3天", 3: "倒数第4天", 4: "倒数第5天"}
+    c1_detail = f"近5日最低点在{day_desc.get(min_idx_in_5, '?')}({min(last5_close):.2f}), " + \
+                ("前3天内, 已止跌" if c1_passed else "近2天内, 仍在探底")
+    checks.append({"key": "止跌企稳", "label": "近5日止跌企稳", "passed": c1_passed, "detail": c1_detail})
+
+    # --- 条件2: 不创新低 (近3天最低价都 ≥ 倒数第4天的最低价) ---
+    ref_low = lows[-4]  # 近3天之前那天(前低基准)
+    last3_lows = lows[-3:]
+    c2_passed = all(lo >= ref_low for lo in last3_lows)
+    breach = [round(lo, 2) for lo in last3_lows if lo < ref_low]
+    c2_detail = f"前低(倒数第4天){ref_low:.2f}, 近3天最低 {min(last3_lows):.2f}, " + \
+                ("未破前低" if c2_passed else f"已破前低{breach}")
+    checks.append({"key": "不创新低", "label": "近3天不创新低", "passed": c2_passed, "detail": c2_detail})
+
+    # --- 条件3: MA5 逐日抬高 (近5日每天的 MA5 严格上升) ---
+    # MA5[i] = mean(closes[i-4..i]), 取最后5个 MA5 值比较
+    ma5_series = []
+    for i in range(n - 5, n):  # 最后5个交易日的 MA5 (i 从 n-5 到 n-1)
+        ma5_series.append(round(sum(closes[i - 4:i + 1]) / 5, 3))
+    c3_passed = all(ma5_series[i] > ma5_series[i - 1] for i in range(1, len(ma5_series)))
+    c3_detail = f"近5日MA5序列 {ma5_series}, " + ("逐日抬高" if c3_passed else "未逐日抬高(有回落)")
+    checks.append({"key": "MA5抬高", "label": "近5日MA5逐日抬高", "passed": c3_passed, "detail": c3_detail})
+
+    # --- 条件4: 今日站上5日线 ---
+    today_close = closes[-1]
+    c4_passed = today_close >= ma5_today if ma5_today is not None else False
+    c4_detail = f"今日收盘 {today_close:.2f} vs MA5 {ma5_today}, " + \
+                ("站上5日线" if c4_passed else "在5日线下方")
+    checks.append({"key": "站上MA5", "label": "今日站上5日线", "passed": c4_passed, "detail": c4_detail})
+
+    # --- 条件5: 未冲高回落 (负面信号: 上影线>30% = 冲高回落 = 不利) ---
+    # 上影线比例 = (最高价 − 收盘价) / 最高价 × 100%
+    today_high = rows[-1]["high"]
+    upper_shadow_pct = ((today_high - today_close) / today_high * 100) if today_high > 0 else 0
+    upper_shadow_pct = round(upper_shadow_pct, 2)
+    c5_passed = upper_shadow_pct <= 30  # ≤30% 算"未冲高回落"(通过)
+    c5_detail = f"今日最高 {today_high:.2f} 收盘 {today_close:.2f}, 上影线 {upper_shadow_pct}%, " + \
+                ("未冲高回落" if c5_passed else "冲高回落(>30%, 抛压重)")
+    checks.append({"key": "未冲高回落", "label": "今日未冲高回落", "passed": c5_passed, "detail": c5_detail})
+
+    stabilized = all(c["passed"] for c in checks)
+    return {"stabilized": stabilized, "checks": checks}
 
 
 def _analyze(rows, name):
@@ -185,6 +267,9 @@ def _analyze(rows, name):
     else:
         level, suggested = "发散", 0.30
 
+    # ===== 企稳信号 (4 项全过 = 已企稳) =====
+    signals = _stabilization_signals(rows, closes, ma[5])
+
     return {
         "code": ts_code,
         "name": name,
@@ -197,6 +282,7 @@ def _analyze(rows, name):
         "cohesion_pct": cohesion_pct,
         "cohesion_level": level,
         "suggested_clear_ratio": suggested,
+        "stabilization": signals,
     }
 
 

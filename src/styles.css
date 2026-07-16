@@ -347,6 +347,71 @@ tbody tr.highlight td { font-weight: 600; }
   max-width: 90vw;
 }
 
+/* ===== 企稳信号卡片 ===== */
+.stab-card { border-left: 3px solid var(--accent); }
+.stab-card.stab-ok { border-left-color: var(--pos); }
+.stab-card.stab-warn { border-left-color: var(--warn); }
+.stab-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.stab-head h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.stab-pass-count {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-sub);
+  font-weight: 600;
+}
+.stab-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.stab-verdict.verdict-ok { background: var(--pos-soft); color: var(--pos); }
+.stab-verdict.verdict-warn { background: var(--warn-soft); color: var(--warn); }
+
+.stab-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.stab-check {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.stab-check.check-pass { border-color: var(--pos); background: var(--pos-soft); }
+.stab-check.check-fail { border-color: var(--neg); background: var(--neg-soft); }
+.stab-check-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.stab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.check-pass .stab-icon { background: var(--pos); color: #fff; }
+.check-fail .stab-icon { background: var(--neg); color: #fff; }
+.stab-label { font-size: 13.5px; font-weight: 600; }
+.stab-detail { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+
 /* ===== 响应式 ===== */
 @media (max-width: 640px) {
   .container { padding: 14px 12px 50px; }

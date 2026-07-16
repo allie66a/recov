@@ -174,6 +174,9 @@ export default function App() {
         <span className="fetch-status" role="status" aria-live="polite">{fetchStatus}</span>
       </section>
 
+      {/* 企稳信号卡片(最前) */}
+      {quote && quote.stabilization && <StabilizationCard quote={quote} />}
+
       {/* 均线/压力位卡片 */}
       {quote && <MaCard quote={quote} />}
 
@@ -338,6 +341,34 @@ function ResultItem({ label, value, className }) {
   )
 }
 
+function StabilizationCard({ quote }) {
+  const stab = quote.stabilization
+  const passed = stab.checks.filter(c => c.passed).length
+  const total = stab.checks.length
+  const ok = stab.stabilized
+  return (
+    <section className={`stab-card card ${ok ? 'stab-ok' : 'stab-warn'}`}>
+      <div className="stab-head">
+        <h2>企稳信号 <span className="stab-pass-count">{passed}/{total}</span></h2>
+        <span className={`stab-verdict ${ok ? 'verdict-ok' : 'verdict-warn'}`}>
+          {ok ? '✅ 已企稳, 可考虑加仓' : '❌ 未企稳, 继续观望'}
+        </span>
+      </div>
+      <div className="stab-checks">
+        {stab.checks.map((c, i) => (
+          <div key={i} className={`stab-check ${c.passed ? 'check-pass' : 'check-fail'}`}>
+            <div className="stab-check-head">
+              <span className="stab-icon">{c.passed ? '✓' : '✗'}</span>
+              <span className="stab-label">{c.label}</span>
+            </div>
+            <div className="stab-detail">{c.detail}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function MaCard({ quote }) {
   const d = quote
   const mas = [['MA5', d.ma5], ['MA8', d.ma8], ['MA13', d.ma13], ['MA20', d.ma20], ['MA60', d.ma60]]
@@ -428,6 +459,16 @@ function sellPriceByType(type, d) {
 
 function applyQuoteToInput(d, input, update) {
   update('current', d.current_price)
+  // 加仓价默认联动今天收盘价(在现价附近加仓是默认假设)
+  // 仅在用户没改过 buyPrice(仍是默认值或等于旧 current)时更新, 避免覆盖用户故意设的不同加仓价
+  const prevCurrent = +input.current
+  const prevBuy = +input.buyPrice
+  const buyIsDefault = (input.buyPrice === '' || input.buyPrice == null
+                        || prevBuy === prevCurrent
+                        || prevBuy === DEFAULTS.buyPrice)
+  if (buyIsDefault) {
+    update('buyPrice', d.current_price)
+  }
   // 按当前目标价类型填卖出价(custom 不覆盖)
   const sp = sellPriceByType(input.sellType, d)
   if (sp != null && (input.sellType !== 'custom' || input.sellPrice === '' || input.sellPrice == null)) {
