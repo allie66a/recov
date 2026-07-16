@@ -150,11 +150,14 @@ def _analyze(rows, name):
     last_date = str(rows[-1]["trade_date"])
     ts_code = rows[-1].get("ts_code", "")
 
-    # 第一压力位: > 当前价 且 数值最小的均线
-    above = {w: v for w, v in ma.items() if (v is not None) and (v > current)}
-    if above:
-        res_ma = min(above, key=lambda w: above[w])
-        first_resistance = above[res_ma]
+    # 第一压力位: 只在 MA20 / MA60 里选(短期波动均线不作为主压力判断)
+    # 规则: 取当前价上方、两者中较低的那个; 都在下方则无压力位
+    res_candidates = {w: ma[w] for w in (20, 60)
+                      if ma[w] is not None and ma[w] > current}
+    if res_candidates:
+        # 取较低者(更近的压力, 先到先卖)
+        res_ma = min(res_candidates, key=lambda w: res_candidates[w])
+        first_resistance = res_candidates[res_ma]
     else:
         res_ma = None
         first_resistance = None
