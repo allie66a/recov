@@ -150,8 +150,8 @@ def _stabilization_signals(rows, closes, ma5_today):
       stabilized: bool, 5项是否全过
       checks: list of {key, label, passed, detail}
     口径:
-      1. 止跌企稳: 近5日最低点出现在前3天内 (最近2天没再创新低)
-      2. 不创新低: 近3天最低价都 ≥ 近3天之前那天(倒数第4天)的最低价
+      1. 止跌企稳(趋势): 近3日收盘均价 > 前2日收盘均价 (方向向上)
+      2. 不创新低(底线): 近3天最低价都 ≥ 倒数第4天的最低价
       3. MA5抬高: 近5日 MA5 逐日严格上升
       4. 站上5日线: 今日收盘 ≥ 今日 MA5
       5. 未冲高回落: 上影线比例 (最高-收盘)/最高 ≤ 30%
@@ -168,19 +168,16 @@ def _stabilization_signals(rows, closes, ma5_today):
 
     lows = [r["low"] for r in rows]
 
-    # --- 条件1: 止跌企稳 (近5日"最低价"的最低点在前3天, 即最近2天没有更低的 low) ---
-    # 注意用 low(最低价) 而非 close, 与条件2同口径, 避免盘中破位尾盘拉回时误判
-    # last5_low[0]=倒数第5天 ... last5_low[4]=今天(倒数第1天)
-    last5_low = lows[-5:]
-    # min_idx_in_5: 0..4, 其中 3..4 = 最近2天(今天/昨天), 0..2 = 前3天
-    min_idx_in_5 = last5_low.index(min(last5_low))
-    # 最近2天没创新低 = 最低点不在最后2个位置(index 3,4)
-    c1_passed = min_idx_in_5 <= 2
-    # index → 倒数第几天 (index 4 = 倒数第1天=今天, index 0 = 倒数第5天)
-    day_desc = {4: "最近1天(今天)", 3: "倒数第2天", 2: "倒数第3天", 1: "倒数第4天", 0: "倒数第5天"}
-    c1_detail = f"近5日最低价在{day_desc.get(min_idx_in_5, '?')}({min(last5_low):.2f}), " + \
-                ("前3天内, 已止跌" if c1_passed else "近2天内, 仍在探底")
-    checks.append({"key": "止跌企稳", "label": "近5日止跌企稳", "passed": c1_passed, "detail": c1_detail})
+    # --- 条件1: 止跌企稳 (看趋势方向: 近3日收盘均价 > 前2日收盘均价) ---
+    # 与条件2(看底线: 不破前低)分工: 条件1看方向是否向上, 不重叠
+    # 近5日 = 前2天(倒数第5/4) + 近3天(倒数第3/2/1)
+    last5_close = closes[-5:]
+    avg_prev2 = sum(last5_close[:2]) / 2     # 前2天均价(较早)
+    avg_last3 = sum(last5_close[2:]) / 3     # 近3天均价(较晚)
+    c1_passed = avg_last3 > avg_prev2
+    c1_detail = (f"前2日均价 {avg_prev2:.2f} → 近3日均价 {avg_last3:.2f}, " +
+                 ("趋势向上, 已止跌" if c1_passed else "趋势向下, 仍在跌"))
+    checks.append({"key": "止跌企稳", "label": "近5日止跌企稳(趋势)", "passed": c1_passed, "detail": c1_detail})
 
     # --- 条件2: 不创新低 (近3天最低价都 ≥ 倒数第4天的最低价) ---
     ref_low = lows[-4]  # 近3天之前那天(前低基准)
