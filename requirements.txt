@@ -1,2 +1,2 @@
-tushare==1.4.29
-pandas==2.4.6
+tushare
+pandas
