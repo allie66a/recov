@@ -17,13 +17,16 @@
  */
 
 // ===== 默认参数 =====
+// 注意: 持仓相关价格(成本/当前价/加仓价/目标价/股数)不设默认值,
+//       这些是用户自己的数据或拉取行情后自动填, 预填某只股票的数字会误导。
+//       这里只保留"策略参数"的默认值(做T比例/收益率/次数、费用率等)。
 export const DEFAULTS = {
-  cost: 333,
-  current: 235,
-  shares: 1000,
-  buyPrice: 235,
+  cost: '',             // 原始持仓成本: 用户自填
+  current: '',          // 当前股价: 拉取行情后自动填
+  shares: '',           // 原持仓股数: 用户自填
+  buyPrice: '',         // 加仓价格: 拉取后自动填今天收盘价
   waveRatio: 30,        // 百分比输入(界面), 内部转小数
-  sellPrice: 293,
+  sellPrice: '',        // 目标卖出价: 拉取后自动填压力位
   sellType: 'auto',     // auto / ma60 / ma20 / custom
   tRatio: 30,           // 百分比
   tReturn: 5,           // 百分比
@@ -48,28 +51,37 @@ export function commission(amount, rate, minFee) {
 }
 
 /**
+ * 空字符串/空值 → NaN(让下游 isFinite 检查显示"—", 而非误算成 0)
+ */
+const numOrNaN = (v) => {
+  if (v === '' || v == null) return NaN
+  const n = +v
+  return isFinite(n) ? n : NaN
+}
+
+/**
  * 把界面输入(含百分比字段)归一化为计算用参数对象
  */
 export function normalizeInputs(input) {
   return {
-    C: +input.cost,
-    cur: +input.current,
-    Q: +input.shares,
-    B: +input.buyPrice,
-    P: pct(+input.waveRatio),
-    S: +input.sellPrice,
-    tRatio: pct(+input.tRatio),
-    R: pct(+input.tReturn),
-    N: Math.round(+input.tTimes || 0),
+    C: numOrNaN(input.cost),
+    cur: numOrNaN(input.current),
+    Q: numOrNaN(input.shares),
+    B: numOrNaN(input.buyPrice),
+    P: pct(numOrNaN(input.waveRatio)),
+    S: numOrNaN(input.sellPrice),
+    tRatio: pct(numOrNaN(input.tRatio)),
+    R: pct(numOrNaN(input.tReturn)),
+    N: Math.round(numOrNaN(input.tTimes) || 0),
     tBasis: input.tBasis || 'estimate',
     actualRows: input.actualRows || [],
     fee: {
       enabled: !!input.feeEnabled,
-      buyFee: pct(+input.buyFee),
-      sellFee: pct(+input.sellFee),
-      stampDuty: pct(+input.stampDuty),
-      minFee: +input.minFee,
-      slippage: pct(+input.slippage),
+      buyFee: pct(numOrNaN(input.buyFee)),
+      sellFee: pct(numOrNaN(input.sellFee)),
+      stampDuty: pct(numOrNaN(input.stampDuty)),
+      minFee: numOrNaN(input.minFee),
+      slippage: pct(numOrNaN(input.slippage)),
     },
   };
 }
