@@ -40,6 +40,19 @@ export default function App() {
     setInput(prev => ({ ...prev, [key]: value }))
   }, [])
 
+  // 切换目标价类型时, 联动填充目标卖出价
+  //   auto → 压力位 / ma60 → MA60 / ma20 → MA20 / custom → 保持不动
+  const handleSellTypeChange = useCallback((newType) => {
+    const sp = sellPriceByType(newType, quote)
+    if (sp != null) {
+      // 有行情数据: 按类型自动填
+      setInput(prev => ({ ...prev, sellType: newType, sellPrice: sp }))
+    } else {
+      // 无行情 或 custom: 只改类型, 不动卖出价
+      setInput(prev => ({ ...prev, sellType: newType }))
+    }
+  }, [quote])
+
   // ===== 计算结果(派生) =====
   const p = useMemo(() => normalizeInputs({
     ...input,
@@ -182,7 +195,7 @@ export default function App() {
           <NumberField label="目标卖出价" unit="元/股" value={input.sellPrice} onChange={v => update('sellPrice', v)} />
           <label className="field">
             <span className="label">目标价类型</span>
-            <select value={input.sellType} onChange={e => update('sellType', e.target.value)}>
+            <select value={input.sellType} onChange={e => handleSellTypeChange(e.target.value)}>
               <option value="auto">均线压力位(自动)</option>
               <option value="ma60">60日线</option>
               <option value="ma20">20日线</option>
@@ -400,15 +413,29 @@ function buildActualRows(input) {
   return Array.from({ length: N }).map((_, i) => stored[i] || { buy: '', sell: '' })
 }
 
+// 根据目标价类型, 从行情数据取对应的卖出价
+//   auto   → 压力位 (后端算的 MA20/MA60 较低者)
+//   ma60   → MA60
+//   ma20   → MA20
+//   custom → null (用户手填, 不覆盖)
+function sellPriceByType(type, d) {
+  if (!d) return null
+  if (type === 'auto') return d.first_resistance
+  if (type === 'ma60') return d.ma60
+  if (type === 'ma20') return d.ma20
+  return null  // custom
+}
+
 function applyQuoteToInput(d, input, update) {
   update('current', d.current_price)
-  if (d.first_resistance != null) {
-    if (input.sellType === 'auto' || input.sellPrice === '' || input.sellPrice == null) {
-      update('sellPrice', d.first_resistance)
-    }
-    if (d.suggested_clear_ratio != null && (input.waveRatio === '' || input.waveRatio == null)) {
-      update('waveRatio', Math.round(d.suggested_clear_ratio * 100))
-    }
+  // 按当前目标价类型填卖出价(custom 不覆盖)
+  const sp = sellPriceByType(input.sellType, d)
+  if (sp != null && (input.sellType !== 'custom' || input.sellPrice === '' || input.sellPrice == null)) {
+    update('sellPrice', sp)
+  }
+  // 建议清仓比例仅在 waveRatio 为空时填(不覆盖用户已设值)
+  if (d.suggested_clear_ratio != null && (input.waveRatio === '' || input.waveRatio == null)) {
+    update('waveRatio', Math.round(d.suggested_clear_ratio * 100))
   }
 }
 
