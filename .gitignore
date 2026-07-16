@@ -1,0 +1,16 @@
+# 依赖
+node_modules/
+
+# 构建产物(Vercel 会自己 build, 不用提交)
+dist/
+
+# 本地环境(真实 token 绝不进仓库)
+.env
+.env.local
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 系统文件
+.DS_Store
