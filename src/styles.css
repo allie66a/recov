@@ -121,9 +121,10 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
-.badge.lv-loose { background: var(--pos-soft); color: var(--pos); }
-.badge.lv-mid   { background: var(--warn-soft); color: var(--warn); }
-.badge.lv-tight { background: var(--neg-soft); color: var(--neg); }
+.badge.lv-tight    { background: var(--neg-soft);   color: var(--neg); }   /* 紧<5%: 红, 抛压最重 */
+.badge.lv-midtight { background: var(--warn-soft);  color: var(--warn); }  /* 偏紧5-8%: 橙 */
+.badge.lv-midloose { background: #fef9c3;           color: #ca8a04; }      /* 偏松8-12%: 黄 */
+.badge.lv-loose    { background: var(--pos-soft);   color: var(--pos); }   /* 发散>12%: 绿 */
 .ma-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

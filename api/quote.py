@@ -169,14 +169,21 @@ def _analyze(rows, name):
     else:
         cohesion_pct = None
 
+    # 粘合度分档(2026-07-17 修订)
+    #   <5%    紧   → 80% (均线高度粘合, 抛压最重, 建议高比例清仓)
+    #   5-8%   偏紧 → 60%
+    #   8-12%  偏松 → 50%
+    #   >12%   发散 → 30% (均线分散/价格离均线远, 做T风险高, 优先减波段仓)
     if cohesion_pct is None:
         level, suggested = None, None
-    elif cohesion_pct < 3:
-        level, suggested = "松", 0.30
-    elif cohesion_pct <= 6:
-        level, suggested = "中", 0.50
-    else:
+    elif cohesion_pct < 5:
         level, suggested = "紧", 0.80
+    elif cohesion_pct < 8:
+        level, suggested = "偏紧", 0.60
+    elif cohesion_pct <= 12:
+        level, suggested = "偏松", 0.50
+    else:
+        level, suggested = "发散", 0.30
 
     return {
         "code": ts_code,

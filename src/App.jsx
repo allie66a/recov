@@ -328,12 +328,17 @@ function ResultItem({ label, value, className }) {
 function MaCard({ quote }) {
   const d = quote
   const mas = [['MA5', d.ma5], ['MA8', d.ma8], ['MA13', d.ma13], ['MA20', d.ma20], ['MA60', d.ma60]]
-  const lvMap = { '松': 'lv-loose', '中': 'lv-mid', '紧': 'lv-tight' }
+  const lvMap = { '紧': 'lv-tight', '偏紧': 'lv-midtight', '偏松': 'lv-midloose', '发散': 'lv-loose' }
+  const hintMap = {
+    '紧': '均线高度粘合, 抛压最重, 建议高比例清仓',
+    '偏紧': '均线偏紧, 抛压较重',
+    '偏松': '均线偏松, 适度清仓',
+    '发散': '均线分散, 做T风险高, 优先减波段仓',
+  }
   let hint = ''
   if (d.first_resistance != null) {
     hint = `第一压力位 = ${d.resistance_ma} ${fmtNum(d.first_resistance)} 元`
-    hint += d.cohesion_level === '紧' ? '(均线高度粘合, 抛压重, 建议加大波段清仓比例)'
-      : d.cohesion_level === '中' ? '(均线中度粘合, 适度清仓)' : '(均线分散, 抛压较轻)'
+    hint += `(${hintMap[d.cohesion_level] || ''})`
     if (d.suggested_clear_ratio != null) hint += `, 参考清仓比例 ${Math.round(d.suggested_clear_ratio * 100)}%`
     hint += '。已自动填入目标卖出价。'
   } else {
