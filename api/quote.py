@@ -232,17 +232,23 @@ def _analyze(rows, name):
     last_date = str(rows[-1]["trade_date"])
     ts_code = rows[-1].get("ts_code", "")
 
-    # 第一压力位: 只在 MA20 / MA60 里选(短期波动均线不作为主压力判断)
-    # 规则: 取当前价上方、两者中较低的那个; 都在下方则无压力位
-    res_candidates = {w: ma[w] for w in (20, 60)
+    # 第一压力位: 所有均线(MA5/8/13/20/60)中, 在当前价上方且数值最低的那条
+    res_candidates = {w: ma[w] for w in (5, 8, 13, 20, 60)
                       if ma[w] is not None and ma[w] > current}
     if res_candidates:
-        # 取较低者(更近的压力, 先到先卖)
         res_ma = min(res_candidates, key=lambda w: res_candidates[w])
         first_resistance = res_candidates[res_ma]
     else:
         res_ma = None
         first_resistance = None
+
+    # 每条均线距离当前价的 %(正=上方压力, 负=下方支撑)
+    ma_distances = {}
+    for w in (5, 8, 13, 20, 60):
+        if ma[w] is not None and current > 0:
+            ma_distances[w] = round((ma[w] - current) / current * 100, 2)
+        else:
+            ma_distances[w] = None
 
     # 粘合度
     valid = [v for v in ma.values() if v is not None]
@@ -277,6 +283,7 @@ def _analyze(rows, name):
         "current_price": current,
         "ma5": ma[5], "ma8": ma[8], "ma13": ma[13],
         "ma20": ma[20], "ma60": ma[60],
+        "ma_distances": ma_distances,
         "first_resistance": first_resistance,
         "resistance_ma": f"MA{res_ma}" if res_ma else None,
         "cohesion_pct": cohesion_pct,
@@ -284,6 +291,64 @@ def _analyze(rows, name):
         "suggested_clear_ratio": suggested,
         "stabilization": signals,
     }
+
+
+def _query_cyb(token):
+    """查询创业板指(399006)的均线+压力位+距离, 作为大盘环境参考。
+    失败返回 None(不阻断个股查询)。
+    创业板是指数, 用 index_daily 接口(非 daily), 无需复权(指数无除权)。
+    """
+    try:
+        cyb_code = "399006.SZ"
+        # 指数日线(无需 adj_factor, 指数不存在除权)
+        data = _ts_post("index_daily", token,
+                        params={"ts_code": cyb_code},
+                        fields="ts_code,trade_date,close,high,low")
+        recs = _ts_to_records(data)
+        if not recs:
+            return None
+        recs.sort(key=lambda r: r["trade_date"])
+        closes = [float(r["close"]) for r in recs]
+        if len(closes) < 60:
+            return None
+
+        def _ma(w):
+            return round(sum(closes[-w:]) / w, 2) if len(closes) >= w else None
+        ma = {w: _ma(w) for w in (5, 8, 13, 20, 60)}
+        current = round(closes[-1], 2)
+        last_date = str(recs[-1]["trade_date"])
+
+        # 压力位: 股价上方最低均线
+        above = {w: ma[w] for w in (5, 8, 13, 20, 60)
+                 if ma[w] is not None and ma[w] > current}
+        if above:
+            res_ma = min(above, key=lambda w: above[w])
+            first_resistance = above[res_ma]
+        else:
+            res_ma = None
+            first_resistance = None
+
+        # 每条均线距离
+        distances = {}
+        for w in (5, 8, 13, 20, 60):
+            if ma[w] is not None and current > 0:
+                distances[w] = round((ma[w] - current) / current * 100, 2)
+            else:
+                distances[w] = None
+
+        return {
+            "code": cyb_code,
+            "name": "创业板指",
+            "last_date": last_date,
+            "current_price": current,
+            "ma5": ma[5], "ma8": ma[8], "ma13": ma[13],
+            "ma20": ma[20], "ma60": ma[60],
+            "ma_distances": distances,
+            "first_resistance": first_resistance,
+            "resistance_ma": f"MA{res_ma}" if res_ma else None,
+        }
+    except Exception:
+        return None
 
 
 # ---------- Vercel 入口 ----------
@@ -328,6 +393,8 @@ class handler(BaseHTTPRequestHandler):
                     return self._send(200, {"ok": False,
                                             "error": f"数据不足60日(仅{len(rows)}日), 无法算MA60"})
                 result = _analyze(rows, name)
+                # 附带创业板指(399006)大盘环境(失败不阻断个股返回)
+                result["cyb"] = _query_cyb(tk)
                 return self._send(200, {"ok": True, "data": result})
             except Exception as e:
                 last_err = e

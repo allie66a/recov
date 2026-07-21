@@ -180,6 +180,9 @@ export default function App() {
       {/* 均线/压力位卡片 */}
       {quote && <MaCard quote={quote} />}
 
+      {/* 创业板大盘环境 */}
+      {quote && quote.cyb && <CybCard cyb={quote.cyb} />}
+
       {/* 输入区 */}
       <div className="cards-row">
         {/* 卡片一: 原始持仓 */}
@@ -371,7 +374,6 @@ function StabilizationCard({ quote }) {
 
 function MaCard({ quote }) {
   const d = quote
-  const mas = [['MA5', d.ma5], ['MA8', d.ma8], ['MA13', d.ma13], ['MA20', d.ma20], ['MA60', d.ma60]]
   const lvMap = { '紧': 'lv-tight', '偏紧': 'lv-midtight', '偏松': 'lv-midloose', '发散': 'lv-loose' }
   const hintMap = {
     '紧': '均线高度粘合, 抛压最重, 建议高比例清仓',
@@ -398,14 +400,53 @@ function MaCard({ quote }) {
           </span>
         )}
       </div>
-      <div className="ma-grid">
-        {mas.map(([name, val]) => (
-          <div key={name} className={`ma-cell ${name === d.resistance_ma ? 'is-resistance' : ''}`}>
-            <div className="ma-name">{name}{name === d.resistance_ma ? ' ◀ 压力位' : ''}</div>
+      <MaGrid d={d} />
+      <div className="ma-hint">{hint}</div>
+    </section>
+  )
+}
+
+// 均线网格(个股 + 创业板复用): 每条 MA 显示数值 + 距现价%
+function MaGrid({ d }) {
+  const mas = [['MA5', d.ma5, d.ma_distances?.[5]], ['MA8', d.ma8, d.ma_distances?.[8]],
+               ['MA13', d.ma13, d.ma_distances?.[13]], ['MA20', d.ma20, d.ma_distances?.[20]],
+               ['MA60', d.ma60, d.ma_distances?.[60]]]
+  return (
+    <div className="ma-grid">
+      {mas.map(([name, val, dist]) => {
+        const isRes = name === d.resistance_ma
+        const distStr = dist != null ? `${dist >= 0 ? '+' : ''}${dist.toFixed(2)}%` : ''
+        return (
+          <div key={name} className={`ma-cell ${isRes ? 'is-resistance' : ''}`}>
+            <div className="ma-name">{name}{isRes ? ' ◀ 压力位' : ''}</div>
             <div className="ma-val">{val != null ? fmtNum(val) : '—'}</div>
+            {distStr && (
+              <div className={`ma-dist ${dist >= 0 ? 'dist-up' : 'dist-down'}`}>
+                {dist >= 0 ? '↑' : '↓'} {distStr.replace(/[+-]/, '')}
+              </div>
+            )}
           </div>
-        ))}
+        )
+      })}
+    </div>
+  )
+}
+
+// 创业板大盘环境区块
+function CybCard({ cyb }) {
+  if (!cyb) return null
+  let hint = ''
+  if (cyb.first_resistance != null) {
+    hint = `上方第一压力位 ${cyb.resistance_ma} ${fmtNum(cyb.first_resistance)}`
+  } else {
+    hint = '所有均线在下方, 暂无均线压力'
+  }
+  return (
+    <section className="cyb-card card">
+      <div className="ma-card-head">
+        <h2>📊 大盘环境 · {cyb.name} 收盘 {fmtNum(cyb.current_price)} {cyb.last_date}</h2>
       </div>
+      <MaGrid d={cyb} />
       <div className="ma-hint">{hint}</div>
     </section>
   )
